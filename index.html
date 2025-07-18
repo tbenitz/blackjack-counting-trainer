@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackjack Card Counting Trainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* slate-900 */
+            overflow: hidden; /* Prevent scrolling */
+        }
+        .card {
+            width: 100px;
+            height: 140px;
+            background-size: cover;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            margin: 0 4px;
+        }
+        .card-container {
+            min-height: 150px;
+        }
+        .hand {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            transition: all 0.2s ease;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .highlight-deviation {
+            background-color: #f59e0b; /* amber-500 */
+            color: #1e293b; /* slate-800 */
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 10px 5px rgba(245, 158, 11, 0);
+            }
+        }
+        .font-mono {
+            font-family: 'Roboto Mono', monospace;
+        }
+    </style>
+</head>
+<body class="text-white flex items-center justify-center h-screen p-4 bg-slate-900">
+
+    <div class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-6 h-[95vh]">
+
+        <!-- Game Area -->
+        <div class="lg:col-span-3 bg-slate-800/50 p-4 rounded-2xl shadow-2xl border border-slate-700 flex flex-col">
+            <!-- Top Section: Settings & Dealer -->
+            <div>
+                <div id="settings-area" class="flex justify-center items-center flex-wrap gap-4 mb-4">
+                    <label for="deck-count" class="text-lg">Decks:</label>
+                    <select id="deck-count" class="bg-slate-700 text-white rounded-md p-2 w-20 text-center">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6" selected>6</option>
+                        <option value="7">7</option>
+                    </select>
+                    <button id="deal-hand-btn" class="btn bg-emerald-600 hover:bg-emerald-500 px-6 py-2 rounded-md font-bold">Deal Hand</button>
+                </div>
+                <div class="text-center mb-2">
+                    <h2 class="text-xl font-bold mb-2">Dealer's Hand <span id="dealer-score" class="font-mono text-amber-400"></span></h2>
+                    <div id="dealer-hand" class="hand card-container"></div>
+                </div>
+            </div>
+
+            <!-- Middle Section: Messages -->
+            <div id="message-area" class="flex-grow flex items-center justify-center text-center text-3xl font-bold"></div>
+
+            <!-- Bottom Section: Player & Controls -->
+            <div>
+                <div class="text-center mb-2">
+                    <h2 class="text-xl font-bold mb-2">Player's Hand <span id="player-score" class="font-mono text-green-400"></span></h2>
+                    <div id="player-hand" class="hand card-container"></div>
+                </div>
+                <div id="strategy-advice-area" class="text-center mb-2 p-2 rounded-lg bg-slate-900/70 h-auto flex items-center justify-center">
+                     <p id="strategy-text" class="text-lg font-bold"></p>
+                </div>
+                <div id="controls-area" class="flex justify-center items-center gap-4">
+                    <button id="hit-btn" class="btn bg-sky-600 hover:bg-sky-500 px-8 py-3 rounded-md font-bold text-lg">Hit</button>
+                    <button id="stand-btn" class="btn bg-red-600 hover:bg-red-500 px-8 py-3 rounded-md font-bold text-lg">Stand</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trainer Panel -->
+        <div class="lg:col-span-2 bg-slate-800 p-4 rounded-2xl shadow-2xl border border-slate-700 flex flex-col justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-center mb-4 border-b-2 border-slate-600 pb-2">Card Counting Trainer</h2>
+                
+                <div class="space-y-2 text-base">
+                    <div class="flex justify-between items-center bg-slate-700/50 p-2 rounded-lg">
+                        <span class="font-bold">Running Count:</span>
+                        <span id="running-count" class="font-mono text-xl font-bold text-cyan-400">0</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-700/50 p-2 rounded-lg">
+                        <span class="font-bold">Cards Remaining:</span>
+                        <span id="cards-remaining" class="font-mono text-xl font-bold text-purple-400">0</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-slate-900 p-2 rounded-lg border-2 border-amber-400">
+                        <span class="font-bold text-lg">True Count:</span>
+                        <span id="true-count" class="font-mono text-2xl font-bold text-amber-400">0.0</span>
+                    </div>
+                </div>
+
+                <div id="probability-display" class="mt-4 text-center bg-slate-700/50 p-3 rounded-lg">
+                    <h3 class="font-bold text-lg mb-2">Draw Probability</h3>
+                    <div class="flex justify-around text-xs">
+                        <div>
+                            <p class="font-bold text-red-400">Low (2-6)</p>
+                            <p id="low-prob" class="font-mono font-bold text-base">0%</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-400">Neutral (7-9)</p>
+                            <p id="neutral-prob" class="font-mono font-bold text-base">0%</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-green-400">High (10-A)</p>
+                            <p id="high-prob" class="font-mono font-bold text-base">0%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="betting-advice" class="mt-4 text-center bg-green-800/50 p-3 rounded-lg">
+                    <h3 class="font-bold text-lg mb-1">Betting Advice</h3>
+                    <p id="betting-text" class="text-base">Bet the Minimum</p>
+                </div>
+                
+                <div id="deviation-alert" class="mt-4 text-center p-2 rounded-lg min-h-[90px] flex items-center justify-center transition-all duration-300">
+                     <p id="deviation-text" class="font-bold text-base"></p>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <h3 class="text-lg font-bold text-center mb-2">Deck Controls</h3>
+                <div class="flex justify-center items-center gap-4">
+                     <button id="new-deck-btn" class="btn bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-md font-bold text-sm">New Deck</button>
+                     <button id="shuffle-deck-btn" class="btn bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-md font-bold text-sm">Shuffle Deck</button>
+                </div>
+            </div>
+
+            <div class="text-center text-xs text-slate-400 mt-2">
+                <p>Hi-Lo Count: (2-6 = +1), (7-9 = 0), (10-A = -1)</p>
+                <p>True Count = Running Count / (Cards Remaining / 52)</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const deckCountSelect = document.getElementById('deck-count');
+        const newDeckBtn = document.getElementById('new-deck-btn');
+        const shuffleDeckBtn = document.getElementById('shuffle-deck-btn');
+        const dealHandBtn = document.getElementById('deal-hand-btn');
+        const hitBtn = document.getElementById('hit-btn');
+        const standBtn = document.getElementById('stand-btn');
+        const dealerHandDiv = document.getElementById('dealer-hand');
+        const playerHandDiv = document.getElementById('player-hand');
+        const dealerScoreSpan = document.getElementById('dealer-score');
+        const playerScoreSpan = document.getElementById('player-score');
+        const messageArea = document.getElementById('message-area');
+        const runningCountSpan = document.getElementById('running-count');
+        const cardsRemainingSpan = document.getElementById('cards-remaining');
+        const trueCountSpan = document.getElementById('true-count');
+        const bettingText = document.getElementById('betting-text');
+        const deviationAlert = document.getElementById('deviation-alert');
+        const deviationText = document.getElementById('deviation-text');
+        const strategyText = document.getElementById('strategy-text');
+        const lowProbText = document.getElementById('low-prob');
+        const neutralProbText = document.getElementById('neutral-prob');
+        const highProbText = document.getElementById('high-prob');
+
+        // Game State
+        let deckId = null;
+        let numberOfDecks = 6;
+        let dealerHand = [];
+        let playerHand = [];
+        let dealerScore = 0;
+        let playerScore = 0;
+        let runningCount = 0;
+        let trueCount = 0;
+        let cardsRemaining = 0;
+        let remainingCardCounts = { low: 0, neutral: 0, high: 0 };
+        let gameOver = true;
+        let dealerFaceDownCard = null;
+
+        const API_BASE_URL = 'https://deckofcardsapi.com/api/deck';
+
+        // Event Listeners
+        window.addEventListener('load', init);
+        newDeckBtn.addEventListener('click', getNewDeck);
+        shuffleDeckBtn.addEventListener('click', shuffleDeck);
+        dealHandBtn.addEventListener('click', dealHand);
+        hitBtn.addEventListener('click', hit);
+        standBtn.addEventListener('click', stand);
+
+        // --- DECK MANAGEMENT ---
+
+        async function init() {
+            toggleGameControls(false);
+            toggleDeckControls(false);
+            const storedDeckId = localStorage.getItem('blackjack_deck_id');
+            const storedData = localStorage.getItem('blackjack_data');
+
+            let restoreSuccess = false;
+            if (storedDeckId && storedDeckId !== 'null' && storedData) {
+                try {
+                    const data = JSON.parse(storedData);
+                    deckId = storedDeckId;
+                    runningCount = data.runningCount || 0;
+                    cardsRemaining = data.cardsRemaining || 0;
+                    numberOfDecks = data.numberOfDecks || 6;
+                    remainingCardCounts = data.remainingCardCounts || { low: 0, neutral: 0, high: 0 };
+                    
+                    deckCountSelect.value = numberOfDecks;
+                    messageArea.textContent = 'Restored previous deck.';
+                    updateAllAdvice();
+                    toggleDeckControls(true);
+                    restoreSuccess = true;
+                } catch (e) {
+                    console.error("Failed to parse stored data, getting new deck.", e);
+                    localStorage.clear();
+                }
+            }
+            
+            if (!restoreSuccess) {
+                await getNewDeck();
+            }
+        }
+        
+        async function getNewDeck() {
+            messageArea.textContent = 'Getting a new deck...';
+            toggleDeckControls(false);
+            numberOfDecks = parseInt(deckCountSelect.value);
+            try {
+                const response = await fetch(`${API_BASE_URL}/new/shuffle/?deck_count=${numberOfDecks}`);
+                const data = await response.json();
+                if (!data.success) throw new Error('Failed to create a new deck.');
+                
+                deckId = data.deck_id;
+                runningCount = 0;
+                cardsRemaining = data.remaining;
+                
+                remainingCardCounts.low = 20 * numberOfDecks;
+                remainingCardCounts.neutral = 12 * numberOfDecks;
+                remainingCardCounts.high = 20 * numberOfDecks;
+
+                saveStateToStorage();
+                updateAllAdvice();
+                resetBoard();
+                messageArea.textContent = `New ${numberOfDecks}-deck shoe ready. Count reset.`;
+                toggleDeckControls(true);
+            } catch (error) {
+                messageArea.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function shuffleDeck() {
+            if (!deckId) return;
+            messageArea.textContent = 'Shuffling the deck...';
+            toggleDeckControls(false);
+            try {
+                const response = await fetch(`${API_BASE_URL}/${deckId}/shuffle/`);
+                const data = await response.json();
+                if (!data.success) throw new Error('Failed to shuffle deck.');
+
+                runningCount = 0;
+                cardsRemaining = data.remaining;
+                
+                remainingCardCounts.low = 20 * numberOfDecks;
+                remainingCardCounts.neutral = 12 * numberOfDecks;
+                remainingCardCounts.high = 20 * numberOfDecks;
+
+                saveStateToStorage();
+                updateAllAdvice();
+                resetBoard();
+                messageArea.textContent = 'Deck has been reshuffled. Count reset.';
+                toggleDeckControls(true);
+            } catch (error) {
+                messageArea.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function saveStateToStorage() {
+            localStorage.setItem('blackjack_deck_id', deckId);
+            const dataToStore = {
+                runningCount,
+                cardsRemaining,
+                numberOfDecks,
+                remainingCardCounts
+            };
+            localStorage.setItem('blackjack_data', JSON.stringify(dataToStore));
+        }
+        
+        // --- CORE GAME LOGIC ---
+
+        async function dealHand() {
+            if (!deckId) {
+                messageArea.textContent = 'Please get a new deck first.';
+                return;
+            }
+            if (!gameOver) {
+                messageArea.textContent = 'Finish the current hand first!';
+                return;
+            }
+            
+            // Check if deck is low and needs reshuffling BEFORE dealing
+            if (cardsRemaining < 52) {
+                messageArea.textContent = "Cut card reached. Shuffling new shoe...";
+                toggleDeckControls(false);
+                await new Promise(resolve => setTimeout(resolve, 2500)); // Pause for user to read
+                await getNewDeck();
+                return; // Stop the function here, user can press Deal Hand again
+            }
+
+            resetBoard();
+            gameOver = false;
+            
+            try {
+                const data = await drawCards(4);
+                if (!data) return;
+
+                playerHand = [data.cards[0], data.cards[2]];
+                dealerHand = [data.cards[1]];
+                dealerFaceDownCard = data.cards[3];
+
+                processDealtCard(playerHand[0]);
+                processDealtCard(playerHand[1]);
+                processDealtCard(dealerHand[0]);
+
+                renderHands();
+                updateScores();
+                updateAllAdvice();
+                saveStateToStorage();
+
+                if (playerScore === 21) {
+                    messageArea.textContent = 'Blackjack! You win!';
+                    revealDealerCard();
+                    gameOver = true;
+                } else {
+                    toggleGameControls(true);
+                }
+
+            } catch (error) {
+                messageArea.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function hit() {
+            if (gameOver) return;
+            try {
+                const data = await drawCards(1);
+                if (!data) return;
+
+                const newCard = data.cards[0];
+                playerHand.push(newCard);
+                processDealtCard(newCard);
+                renderHands();
+                updateScores();
+                updateAllAdvice();
+                saveStateToStorage();
+                
+                if (playerScore > 21) {
+                    messageArea.textContent = 'Bust! You lose.';
+                    gameOver = true;
+                    revealDealerCard();
+                    toggleGameControls(false);
+                }
+            } catch (error) {
+                messageArea.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function stand() {
+            if (gameOver) return;
+            gameOver = true;
+            toggleGameControls(false);
+            strategyText.textContent = '';
+            revealDealerCard();
+            
+            while (dealerScore < 17 && dealerScore <= playerScore) {
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    const data = await drawCards(1);
+                    if (!data) return;
+
+                    const newCard = data.cards[0];
+                    dealerHand.push(newCard);
+                    processDealtCard(newCard);
+                    renderHands();
+                    updateScores();
+                    updateAllAdvice();
+                    saveStateToStorage();
+                } catch (error) {
+                    messageArea.textContent = `Error: ${error.message}`;
+                    return;
+                }
+            }
+
+            if (dealerScore > 21) {
+                messageArea.textContent = 'Dealer busts! You win!';
+            } else if (playerScore > dealerScore) {
+                messageArea.textContent = 'You win!';
+            } else if (dealerScore > playerScore) {
+                messageArea.textContent = 'Dealer wins.';
+            } else {
+                messageArea.textContent = 'Push (Tie).';
+            }
+        }
+
+        // --- HELPER & UTILITY FUNCTIONS ---
+
+        function resetBoard() {
+            playerHand = [];
+            dealerHand = [];
+            dealerFaceDownCard = null;
+            playerScore = 0;
+            dealerScore = 0;
+            renderHands();
+            updateScores();
+            messageArea.textContent = '';
+            strategyText.textContent = '';
+            deviationAlert.classList.remove('highlight-deviation');
+            deviationText.textContent = '';
+            toggleGameControls(false);
+        }
+        
+        async function drawCards(count) {
+            if (!deckId) throw new Error('No active deck.');
+            // This check is a fallback, main check is in dealHand()
+            if (cardsRemaining < count) {
+                messageArea.textContent = "Not enough cards. Shuffling new shoe...";
+                await getNewDeck();
+                return null;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/${deckId}/draw/?count=${count}`);
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error);
+            }
+            cardsRemaining = data.remaining;
+            return data;
+        }
+
+        function calculateScore(hand) {
+            let score = 0;
+            let aceCount = 0;
+            for (const card of hand) {
+                if (['JACK', 'QUEEN', 'KING'].includes(card.value)) {
+                    score += 10;
+                } else if (card.value === 'ACE') {
+                    aceCount += 1;
+                    score += 11;
+                } else {
+                    score += parseInt(card.value);
+                }
+            }
+            while (score > 21 && aceCount > 0) {
+                score -= 10;
+                aceCount--;
+            }
+            return score;
+        }
+
+        function renderHands() {
+            playerHandDiv.innerHTML = playerHand.map(card => `<div class="card" style="background-image: url('${card.image}')"></div>`).join('');
+            dealerHandDiv.innerHTML = dealerHand.map(card => `<div class="card" style="background-image: url('${card.image}')"></div>`).join('');
+            if (!gameOver && dealerFaceDownCard) {
+                dealerHandDiv.innerHTML += `<div class="card" style="background-image: url('https://deckofcardsapi.com/static/img/back.png')"></div>`;
+            }
+        }
+
+        function updateScores() {
+            playerScore = calculateScore(playerHand);
+            dealerScore = calculateScore(dealerHand);
+            playerScoreSpan.textContent = `(${playerScore})`;
+            dealerScoreSpan.textContent = `(${dealerScore})`;
+        }
+        
+        function toggleGameControls(enabled) {
+            hitBtn.disabled = !enabled;
+            standBtn.disabled = !enabled;
+        }
+
+        function toggleDeckControls(enabled) {
+            dealHandBtn.disabled = !enabled;
+            shuffleDeckBtn.disabled = !enabled;
+            newDeckBtn.disabled = !enabled;
+            deckCountSelect.disabled = !enabled;
+        }
+
+        function revealDealerCard() {
+            if (dealerFaceDownCard) {
+                dealerHand.push(dealerFaceDownCard);
+                processDealtCard(dealerFaceDownCard);
+                dealerFaceDownCard = null;
+                renderHands();
+                updateScores();
+                updateAllAdvice();
+                saveStateToStorage();
+            }
+        }
+
+        // --- CARD COUNTING & ADVICE LOGIC ---
+
+        function updateAllAdvice() {
+            updateTrainerPanel();
+            if (!gameOver) {
+                const basicStrategy = getBasicStrategyAdvice();
+                strategyText.textContent = `Basic Strategy: ${basicStrategy}`;
+                checkDeviation(basicStrategy);
+            }
+        }
+
+        function getCardCountValue(card) {
+            const value = card.value;
+            if (['2', '3', '4', '5', '6'].includes(value)) return 1;
+            if (['10', 'JACK', 'QUEEN', 'KING', 'ACE'].includes(value)) return -1;
+            return 0;
+        }
+
+        function processDealtCard(card) {
+            runningCount += getCardCountValue(card);
+            
+            const value = card.value;
+            if (['2', '3', '4', '5', '6'].includes(value)) {
+                remainingCardCounts.low--;
+            } else if (['7', '8', '9'].includes(value)) {
+                remainingCardCounts.neutral--;
+            } else {
+                remainingCardCounts.high--;
+            }
+        }
+
+        function calculateTrueCount() {
+            const decksRemaining = cardsRemaining / 52;
+            if (decksRemaining < 0.1) return runningCount > 0 ? Infinity : runningCount;
+            return runningCount / decksRemaining;
+        }
+
+        function updateTrainerPanel() {
+            runningCountSpan.textContent = runningCount;
+            cardsRemainingSpan.textContent = cardsRemaining;
+            trueCount = calculateTrueCount();
+            trueCountSpan.textContent = trueCount.toFixed(1);
+            updateBettingAdvice();
+            updateProbabilityDisplay();
+        }
+
+        function updateProbabilityDisplay() {
+            if (cardsRemaining > 0) {
+                lowProbText.textContent = `${((remainingCardCounts.low / cardsRemaining) * 100).toFixed(1)}%`;
+                neutralProbText.textContent = `${((remainingCardCounts.neutral / cardsRemaining) * 100).toFixed(1)}%`;
+                highProbText.textContent = `${((remainingCardCounts.high / cardsRemaining) * 100).toFixed(1)}%`;
+            } else {
+                lowProbText.textContent = '0%';
+                neutralProbText.textContent = '0%';
+                highProbText.textContent = '0%';
+            }
+        }
+
+        function updateBettingAdvice() {
+            let advice = "Bet the Minimum (1 unit)";
+            if (trueCount >= 2) advice = "Bet 2 units";
+            if (trueCount >= 3) advice = "Bet 4 units";
+            if (trueCount >= 4) advice = "Bet 8 units (High Advantage!)";
+            bettingText.textContent = advice;
+        }
+
+        function getBasicStrategyAdvice() {
+            const dealerUpCard = getCardNumericValue(dealerHand[0]);
+            const isSoft = playerHand.some(c => c.value === 'ACE') && calculateScore(playerHand.filter(c => c.value !== 'ACE')) + 11 === playerScore;
+
+            if (isSoft) {
+                if (playerScore >= 19) return "STAND";
+                if (playerScore === 18) return (dealerUpCard >= 2 && dealerUpCard <= 8) ? "STAND" : "HIT";
+                return "HIT";
+            } else { // Hard totals
+                if (playerScore >= 17) return "STAND";
+                if (playerScore >= 13 && playerScore <= 16) return (dealerUpCard >= 2 && dealerUpCard <= 6) ? "STAND" : "HIT";
+                if (playerScore === 12) return (dealerUpCard >= 4 && dealerUpCard <= 6) ? "STAND" : "HIT";
+                return "HIT";
+            }
+        }
+
+        function checkDeviation(basicStrategy) {
+            deviationAlert.classList.remove('highlight-deviation');
+            deviationText.textContent = '';
+            let deviationFound = false;
+            let deviationPlay = '';
+
+            const dealerUpCardValue = getCardNumericValue(dealerHand[0]);
+
+            if (dealerUpCardValue === 11 && playerHand.length === 2 && trueCount >= 3) {
+                deviationFound = true;
+                deviationText.innerHTML = `<strong>DEVIATION:</strong> True count is +3 or higher. <br><strong>TAKE INSURANCE.</strong>`;
+            } else if (playerScore === 16 && dealerUpCardValue === 10 && trueCount >= 0) {
+                deviationFound = true;
+                deviationPlay = "STAND";
+            } else if (playerScore === 15 && dealerUpCardValue === 10 && trueCount >= 4) {
+                deviationFound = true;
+                deviationPlay = "STAND";
+            } else if (playerScore === 12 && dealerUpCardValue === 3 && trueCount >= 2) {
+                deviationFound = true;
+                deviationPlay = "STAND";
+            } else if (playerScore === 12 && dealerUpCardValue === 2 && trueCount >= 3) {
+                deviationFound = true;
+                deviationPlay = "STAND";
+            } else if (playerScore === 13 && dealerUpCardValue === 2 && trueCount < 0) {
+                deviationFound = true;
+                deviationPlay = "HIT";
+            }
+
+            if (deviationFound && deviationPlay && deviationPlay !== basicStrategy) {
+                deviationText.innerHTML = `Basic strategy says <strong>${basicStrategy}</strong>, but the count is high. <br><strong>DEVIATION: ${deviationPlay}</strong>`;
+                deviationAlert.classList.add('highlight-deviation');
+            } else if (deviationFound && !deviationPlay) { // For insurance case
+                 deviationAlert.classList.add('highlight-deviation');
+            }
+        }
+        
+        function getCardNumericValue(card) {
+            if (!card) return 0;
+            if (['JACK', 'QUEEN', 'KING'].includes(card.value)) return 10;
+            if (card.value === 'ACE') return 11;
+            return parseInt(card.value);
+        }
+    </script>
+</body>
+</html>
