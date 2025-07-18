@@ -314,58 +314,48 @@
         
         // --- CORE GAME LOGIC ---
 
-        async function dealHand() {
-            if (!deckId) {
-                messageArea.textContent = 'Please get a new deck first.';
-                return;
-            }
-            if (!gameOver) {
-                messageArea.textContent = 'Finish the current hand first!';
-                return;
-            }
-            
-            // Check if deck is low and needs reshuffling BEFORE dealing
-            if (cardsRemaining < 52) {
-                messageArea.textContent = "Cut card reached. Shuffling new shoe...";
-                toggleDeckControls(false);
-                await new Promise(resolve => setTimeout(resolve, 2500)); // Pause for user to read
-                await getNewDeck();
-                return; // Stop the function here, user can press Deal Hand again
-            }
+async function dealHand() {
+    if (!deckId) {
+        messageArea.textContent = 'Please get a new deck first.';
+        return;
+    }
+    if (!gameOver) {
+        messageArea.textContent = 'Finish the current hand first!';
+        return;
+    }
 
-            resetBoard();
-            gameOver = false;
-            
-            try {
-                const data = await drawCards(4);
-                if (!data) return;
+    resetBoard();
+    gameOver = false;
+    
+    try {
+        const data = await drawCards(4);
+        if (!data) return;
 
-                playerHand = [data.cards[0], data.cards[2]];
-                dealerHand = [data.cards[1]];
-                dealerFaceDownCard = data.cards[3];
+        playerHand = [data.cards[0], data.cards[2]];
+        dealerHand = [data.cards[1]];
+        dealerFaceDownCard = data.cards[3];
 
-                processDealtCard(playerHand[0]);
-                processDealtCard(playerHand[1]);
-                processDealtCard(dealerHand[0]);
+        processDealtCard(playerHand[0]);
+        processDealtCard(playerHand[1]);
+        processDealtCard(dealerHand[0]);
 
-                renderHands();
-                updateScores();
-                updateAllAdvice();
-                saveStateToStorage();
+        renderHands();
+        updateScores();
+        updateAllAdvice();
+        saveStateToStorage();
 
-                if (playerScore === 21) {
-                    messageArea.textContent = 'Blackjack! You win!';
-                    revealDealerCard();
-                    gameOver = true;
-                } else {
-                    toggleGameControls(true);
-                }
-
-            } catch (error) {
-                messageArea.textContent = `Error: ${error.message}`;
-            }
+        if (playerScore === 21) {
+            messageArea.textContent = 'Blackjack! You win!';
+            revealDealerCard();
+            gameOver = true;
+        } else {
+            toggleGameControls(true);
         }
 
+    } catch (error) {
+        messageArea.textContent = `Error: ${error.message}`;
+    }
+}
         async function hit() {
             if (gameOver) return;
             try {
